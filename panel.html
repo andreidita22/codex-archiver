@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div class="ca-header">
+    <div>
+      <strong>Codex Archiver</strong>
+      <div class="ca-sub" id="ca-task">task</div>
+    </div>
+    <button id="ca-close" title="Hide">×</button>
+  </div>
+  <div class="ca-body">
+    <div class="ca-field">
+      <label>Version</label>
+      <div id="ca-version" class="ca-chip">—</div>
+    </div>
+    <div class="ca-field">
+      <label>Sections</label>
+      <div class="ca-chips">
+        <label><input type="checkbox" value="diffs" checked /> Diffs</label>
+        <label><input type="checkbox" value="report" checked /> Report</label>
+        <label><input type="checkbox" value="logs" /> Logs</label>
+      </div>
+    </div>
+    <div class="ca-field">
+      <label>Format</label>
+      <div class="ca-actions">
+        <button id="ca-export-json" class="primary">Export JSON</button>
+        <button id="ca-export-md">Export Markdown</button>
+      </div>
+    </div>
+    <div class="ca-note">
+      Files download under <code>Documents/codex_archive/&lt;task&gt;/&lt;version&gt;/</code>.
+    </div>
+    <div class="ca-status" id="ca-status"></div>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  background: #fff;
+  color: #222;
+}
+.ca-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e3e3e3;
+  background: #f8f8f8;
+  cursor: move;
+}
+.ca-header strong {
+  font-size: 14px;
+}
+.ca-sub {
+  font-size: 11px;
+  color: #666;
+}
+#ca-close {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #777;
+}
+#ca-close:hover {
+  color: #000;
+}
+.ca-body {
+  padding: 12px 14px 16px;
+}
+.ca-field {
+  margin-bottom: 12px;
+}
+.ca-field label {
+  font-size: 12px;
+  color: #444;
+  display: block;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ca-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #eef1ff;
+  color: #334;
+  font-size: 12px;
+}
+.ca-chips label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-right: 12px;
+}
+.ca-chips input {
+  width: 16px;
+  height: 16px;
+}
+.ca-actions {
+  display: flex;
+  gap: 8px;
+}
+.ca-actions button {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid #2a6ef3;
+  background: #fff;
+  color: #2a6ef3;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.ca-actions button.primary {
+  background: #2a6ef3;
+  color: #fff;
+}
+.ca-actions button:hover {
+  background: #1b4fbf;
+  color: #fff;
+}
+.ca-note {
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+}
+.ca-status {
+  margin-top: 10px;
+  font-size: 12px;
+  min-height: 16px;
+  color: #2a6ef3;
+}
+.ca-status.error {
+  color: #d32f2f;
+}

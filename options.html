@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Codex Archiver – Options</title>
+  <style>
+    body { font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; padding: 20px; color: #111; }
+    label { display:block; margin: 12px 0 6px; font-weight: 600; }
+    input[type="text"] { width: 420px; padding: 8px; font: inherit; }
+    .group { margin-bottom: 18px; }
+    .hint { color: #666; font-size: 12px; }
+    button { padding: 8px 14px; font: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Codex Archiver – Options</h1>
+
+  <div class="group">
+    <label for="baseFolder">Default save path (under your Downloads folder)</label>
+    <input id="baseFolder" type="text" placeholder="Documents/codex_archive" />
+    <div class="hint">Example: <code>Documents/codex_archive</code> → files go to <b>Downloads/Documents/codex_archive</b>.</div>
+  </div>
+
+  <div class="group">
+    <label>Default export format</label>
+    <label><input type="radio" name="format" value="json" checked /> JSON</label>
+    <label><input type="radio" name="format" value="markdown" /> Markdown</label>
+  </div>
+
+  <div class="group">
+    <label><input id="includeLogs" type="checkbox" /> Include logs by default</label>
+    <div class="hint">The panel will pre-select the Logs checkbox if enabled.</div>
+  </div>
+
+  <div class="group">
+    <button id="save">Save</button>
+    <span id="status" class="hint" style="margin-left:12px;"></span>
+  </div>
+
+  <script src="options.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Codex Archiver",
+  "version": "0.3.0",
+  "description": "Export ChatGPT Codex task runs into focused Markdown or JSON bundles.",
+  "permissions": ["downloads", "storage", "scripting", "debugger"],
+  "host_permissions": ["https://chatgpt.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["rules.js", "content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["panel.html", "panel.css", "panel.js"],
+      "matches": ["https://chatgpt.com/*"]
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Codex Archiver"
+  }
+}
