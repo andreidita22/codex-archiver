@@ -463,20 +463,20 @@ async function performExport({ sections, format }){
       try { t.el?.click?.(); } catch {}
       await new Promise(r=>setTimeout(r,300));
       const parts = [];
-      for (const k of sections) {
-        const s = await captureSection(k);
-        if (s) parts.push({ ...s, label: `${s.label} (${t.label})` });
-      }
+          for (const k of sections) {
+            const s = await captureSection(k);
+            if (s) parts.push({ ...s, ver: t.label });
+          }
       captured.push(...parts);
     }
     // try restore
     const back=tabs.find(x=>x.label===active);
     try { back?.el?.click?.(); } catch {}
-  } else {
-    for (const k of sections) {
-      const s=await captureSection(k); if (s) captured.push(s);
-    }
-  }
+          } else {
+            for (const k of sections) {
+              const s=await captureSection(k); if (s) captured.push({ ...s, ver: active || (versionRaw || 'current') });
+            }
+          }
 
   // De-dupe by (key,label,first512)
   const seen = new Set();
@@ -632,27 +632,27 @@ async function performExport({ sections, format }){
       lines.push('');
       return lines.join('\n');
     }
-    const grouped = sections.reduce((acc, s) => {
-      (acc[s.key] ||= []).push(s);
-      return acc;
-    }, {});
     const order = ['report', 'diffs', 'logs'];
-    for (const key of order) {
-      const items = grouped[key];
-      if (!items?.length) continue;
-      const label = items[0].label || key;
-      lines.push(`## ${label}`);
+    const versions = [];
+    for (const s of sections) {
+      const v = s.ver || 'Current';
+      if (!versions.includes(v)) versions.push(v);
+    }
+    for (const ver of versions) {
+      lines.push(`## ${ver}`);
       lines.push('');
-      let idx = 0;
-      for (const item of items) {
-        idx += 1;
-        const heading = items.length > 1 ? `${label} ${idx}` : label;
-        lines.push(`### ${heading}`);
+      for (const key of order) {
+        const items = sections.filter(s => (s.ver || 'Current') === ver && s.key === key);
+        if (!items.length) continue;
+        const label = key === 'diffs' ? 'Diffs' : key === 'report' ? 'Report' : 'Logs';
         const fence = key === 'diffs' ? '```diff' : key === 'report' ? '```json' : '```text';
-        lines.push(fence);
-        lines.push(item.text || '');
-        lines.push('```');
-        lines.push('');
+        for (const item of items) {
+          lines.push(`### ${label}`);
+          lines.push(fence);
+          lines.push(item.text || '');
+          lines.push('```');
+          lines.push('');
+        }
       }
     }
     return lines.join('\n');
@@ -694,7 +694,7 @@ async function performExport({ sections, format }){
               const parts = [];
               for (const k of sections) {
                 const s = await captureSection(k);
-                if (s) parts.push({ ...s, label: `${s.label} (${t.label})` });
+                if (s) parts.push({ ...s, ver: t.label });
               }
               captured.push(...parts);
             }
@@ -703,14 +703,14 @@ async function performExport({ sections, format }){
           } else {
             for (const k of sections) {
               const s = await captureSection(k);
-              if (s) captured.push(s);
+              if (s) captured.push({ ...s, ver: active || (versionRaw || 'current') });
             }
           }
-          const seen = new Set();
-          captured = captured.filter((s) => {
-            const k = `${s.key}::${s.label}::${(s.text || '').slice(0, 512)}`;
-            if (seen.has(k)) return false; seen.add(k); return true;
-          });
+        const seen = new Set();
+        captured = captured.filter((s) => {
+          const k = `${s.key}::${s.ver || ''}::${(s.text || '').slice(0, 512)}`;
+          if (seen.has(k)) return false; seen.add(k); return true;
+        });
           return captured;
         })();
 
