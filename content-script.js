@@ -489,7 +489,6 @@ const getTurnContexts = () => {
     if (!__isVisible(el)) continue;
     const promptBubble = el.querySelector('div.self-end');
     const promptText = (promptBubble?.textContent || '').trim();
-    if (!/^NODE:/i.test(promptText)) continue;
     const versionButtons = Array.from(el.querySelectorAll('button'))
       .map((btn) => ({
         el: btn,
@@ -497,15 +496,20 @@ const getTurnContexts = () => {
         isActive: /text-token-text-primary/.test(btn.className || '')
       }))
       .filter((btn) => /^Version\s*\d+/i.test(btn.label));
+    const hasPromptSignal = /^NODE:/i.test(promptText) || /Goal\s*:|Scope\s*:|Turn\s+\d+|Test run/i.test(promptText);
+    const isTurn = versionButtons.length > 0 || (promptText && hasPromptSignal);
+    if (!isTurn) continue;
     const activeBtn = versionButtons.find((btn) => btn.isActive);
     const activeVersionLabel = activeBtn?.label || versionButtons[0]?.label || 'Version 1';
     const warningBanner = el.querySelector('#wham-message-modal-footer');
+    const instructions = promptText || `Turn ${idx + 1}`;
+    const turnKeySource = promptText || `turn-${idx}`;
     contexts.push({
       el,
       index: idx++,
       promptText,
-      instructions: promptText,
-      turnKey: toTurnKey(promptText),
+      instructions,
+      turnKey: toTurnKey(turnKeySource),
       versionButtons,
       activeVersionLabel,
       warningBanner,
