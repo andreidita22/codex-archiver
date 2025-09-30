@@ -175,52 +175,63 @@ const slug = (s) => String(s || '')
   .replace(/^_+|_+$/g, '')
   .slice(0, 120);
 
-const findReportBlock = () => {
-  // Prefer the exact report container: markdown + prose + markdown-new-styling and starting with Summary
+const findReportBlock = (root) => {
+  const scope = root || document;
+  const queryAll = (selector) => Array.from(scope.querySelectorAll(selector));
   const isSummaryStart = (el) => {
     try {
       const first = el.querySelector('p, strong, h1, h2');
       const t = ((first?.textContent) || (el.innerText || '')).trim();
       return /^summary\b/i.test(t);
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   };
-  const specific = Array.from(document.querySelectorAll('div.markdown.prose.markdown-new-styling'))
+  const specific = queryAll('div.markdown.prose.markdown-new-styling')
     .filter(__isVisible)
     .filter(isSummaryStart);
   if (specific.length) {
-    specific.sort((a,b)=> (b.innerText?.length||0) - (a.innerText?.length||0));
+    specific.sort((a, b) => (b.innerText?.length || 0) - (a.innerText?.length || 0));
     return specific[0];
   }
-  // Fallback: any visible markdown+prose block that begins with Summary
-  const cands = Array.from(document.querySelectorAll('.markdown.prose, .prose.markdown'))
+  const cands = queryAll('.markdown.prose, .prose.markdown')
     .filter(__isVisible)
     .filter(isSummaryStart);
   if (cands.length) {
-    cands.sort((a,b)=> (b.innerText?.length||0) - (a.innerText?.length||0));
+    cands.sort((a, b) => (b.innerText?.length || 0) - (a.innerText?.length || 0));
     return cands[0];
   }
-  // Final fallback: largest visible markdown/prose region
-  const any = Array.from(document.querySelectorAll('.markdown, .prose, div, section, article'))
+  const any = queryAll('.markdown, .prose, div, section, article')
     .filter(__isVisible)
-    .map(el => ({ el, len: (el.innerText || el.textContent || '').length }))
-    .sort((a,b)=> b.len - a.len);
+    .map((el) => ({ el, len: (el.innerText || el.textContent || '').length }))
+    .sort((a, b) => b.len - a.len);
   return any[0]?.el || null;
 };
 
-const findLogsTabAndContainer = async () => {
-  const norm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
-  let logsBtn = Array.from(document.querySelectorAll('button,[role="tab"],a'))
+const findLogsTabAndContainer = async (root) => {
+  const scope = root || document;
+  const queryAll = (selector) => Array.from(scope.querySelectorAll(selector));
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const findButton = () => queryAll('button,[role="tab"],a')
     .filter(__isVisible)
-    .find(el => norm(el.textContent).startsWith('logs'));
+    .find((el) => norm(el.textContent).startsWith('logs'));
+  let logsBtn = findButton();
+  if (!logsBtn && scope !== document) {
+    logsBtn = Array.from(document.querySelectorAll('button,[role="tab"],a'))
+      .filter(__isVisible)
+      .find((el) => scope.contains(el) && norm(el.textContent).startsWith('logs'));
+  }
   if (logsBtn) {
     const sel = logsBtn.getAttribute('aria-selected') === 'true';
-    if (!sel) { try { logsBtn.click(); } catch {} await new Promise(r=>setTimeout(r,350)); }
+    if (!sel) {
+      try { logsBtn.click(); } catch {}
+      await new Promise((r) => setTimeout(r, 350));
+    }
   }
-
-  // Try to find a structured container whose first 3 children look like header/setup/prompt
   const textOf = (el) => (typeof el?.innerText === 'string' ? el.innerText : el?.textContent) || '';
   const looksLikeHeaderBlock = (s) => {
-    const t = s.trim(); if (!t) return false;
+    const t = s.trim();
+    if (!t) return false;
     return (
       /^implement\b/i.test(t) ||
       /^(ask|code|diff|logs|internet on|copy|archive|share|create pr|view pr)\b/i.test(t) ||
@@ -231,11 +242,11 @@ const findLogsTabAndContainer = async () => {
     );
   };
   const findStructured = () => {
-    const nodes = Array.from(document.querySelectorAll('div,section,article')).filter(__isVisible);
+    const nodes = queryAll('div,section,article').filter(__isVisible);
     for (const el of nodes) {
       const kids = Array.from(el.children || []).filter(__isVisible);
       if (kids.length >= 3) {
-        const first3 = kids.slice(0,3).map(textOf).join('\n');
+        const first3 = kids.slice(0, 3).map(textOf).join('\n');
         const tailLen = kids.slice(3).reduce((acc, ch) => acc + textOf(ch).length, 0);
         if (looksLikeHeaderBlock(first3) && tailLen > 200) return el;
       }
@@ -243,20 +254,20 @@ const findLogsTabAndContainer = async () => {
     return null;
   };
   let structured = findStructured();
-  for (let i=0; i<10 && !structured; i++) { await new Promise(r=>setTimeout(r,200)); structured = findStructured(); }
+  for (let i = 0; i < 10 && !structured; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    structured = findStructured();
+  }
   if (structured) return structured;
-
-  // Fallback: active tabpanel with longest content
-  const panels = Array.from(document.querySelectorAll('[role="tabpanel"], .tabpanel, .tab-panel')).filter(__isVisible);
+  const panels = queryAll('[role="tabpanel"], .tabpanel, .tab-panel').filter(__isVisible);
   if (panels.length) {
-    panels.sort((a,b)=> (b.innerText?.length||0) - (a.innerText?.length||0));
+    panels.sort((a, b) => (b.innerText?.length || 0) - (a.innerText?.length || 0));
     return panels[0];
   }
-  // Fallback 2: largest visible block
-  const blocks = Array.from(document.querySelectorAll('pre, code, div'))
+  const blocks = queryAll('pre, code, div')
     .filter(__isVisible)
-    .map(el => ({ el, len: (el.innerText || el.textContent || '').length }))
-    .sort((a,b)=> b.len - a.len);
+    .map((el) => ({ el, len: (el.innerText || el.textContent || '').length }))
+    .sort((a, b) => b.len - a.len);
   return blocks[0]?.el || null;
 };
 
@@ -391,7 +402,142 @@ const splitReportFromLogs = (raw) => {
   }
 };
 
-  // Listen for patch capture messages from page hook
+const normalizeTurnText = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+const toTurnKey = (text) => normalizeTurnText(text).slice(0, 200).toLowerCase();
+
+const TURN_METADATA_CACHE = new Map();
+
+async function fetchTurnTree(taskIdRaw) {
+  const key = String(taskIdRaw || '').trim();
+  if (!key) return null;
+  const cached = TURN_METADATA_CACHE.get(key);
+  if (cached && Date.now() - cached.fetchedAt < 30_000) return cached.data;
+  const token = window.__reactRouterDataRouter?.state?.loaderData?.root?.clientBootstrap?.session?.accessToken;
+  if (!token) return null;
+  try {
+    const resp = await fetch(`https://chatgpt.com/backend-api/wham/tasks/${key}/turns`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    TURN_METADATA_CACHE.set(key, { data, fetchedAt: Date.now() });
+    return data;
+  } catch (err) {
+    console.warn('[Codex Archiver] failed to load turn metadata', err);
+    TURN_METADATA_CACHE.set(key, { data: null, fetchedAt: Date.now() });
+    return null;
+  }
+}
+
+async function resolveTurnMetadata(context, taskIdRaw) {
+  if (!context || context.metaResolved) return context;
+  const data = await fetchTurnTree(taskIdRaw);
+  if (data?.turn_mapping) {
+    const entries = Object.values(data.turn_mapping).filter((entry) => entry?.turn?.role === 'user');
+    const ctxKey = context.turnKey;
+    let matched = null;
+    let matchedIndex = -1;
+    entries.forEach((entry, idx) => {
+      const items = entry.turn?.input_items || [];
+      let text = '';
+      for (const item of items) {
+        if (item?.type === 'message') {
+          const parts = item.content || [];
+          text = parts.map((part) => part?.text || '').join('\n');
+          break;
+        }
+      }
+      const key = toTurnKey(text);
+      if (!key || !ctxKey) return;
+      if (key.startsWith(ctxKey) || ctxKey.startsWith(key)) {
+        matched = entry;
+        matchedIndex = idx;
+      }
+    });
+    if (matched) {
+      context.turnId = matched.id;
+      context.turnIndex = matchedIndex;
+      context.turnLabel = `Turn ${matchedIndex + 1}`;
+      context.versionIds = Array.isArray(matched.children) ? matched.children.slice() : [];
+      context.latestAssistantId = data.current_turn_id || null;
+      context.isLatestTurn = context.versionIds?.includes(context.latestAssistantId);
+      context.versionIdByLabel = new Map();
+      (context.versionIds || []).forEach((id, idx) => {
+        context.versionIdByLabel.set(`Version ${idx + 1}`, id);
+      });
+      if ((!context.versionButtons?.length) && context.versionIds?.length === 1) {
+        const baseLabel = context.activeVersionLabel || 'Version 1';
+        context.versionIdByLabel.set(baseLabel, context.versionIds[0]);
+      }
+    } else if (typeof context.turnIndex !== 'number') {
+      context.turnIndex = context.index;
+      context.turnLabel = `Turn ${context.index + 1}`;
+    }
+  } else if (typeof context.turnIndex !== 'number') {
+    context.turnIndex = context.index;
+    context.turnLabel = `Turn ${context.index + 1}`;
+  }
+  context.metaResolved = true;
+  return context;
+}
+
+const getTurnContexts = () => {
+  const nodes = Array.from(document.querySelectorAll('div.flex.flex-col.gap-4'));
+  const contexts = [];
+  let idx = 0;
+  for (const el of nodes) {
+    if (!__isVisible(el)) continue;
+    const promptBubble = el.querySelector('div.self-end');
+    const promptText = (promptBubble?.textContent || '').trim();
+    if (!/^NODE:/i.test(promptText)) continue;
+    const versionButtons = Array.from(el.querySelectorAll('button'))
+      .map((btn) => ({
+        el: btn,
+        label: (btn.textContent || '').trim(),
+        isActive: /text-token-text-primary/.test(btn.className || '')
+      }))
+      .filter((btn) => /^Version\s*\d+/i.test(btn.label));
+    const activeBtn = versionButtons.find((btn) => btn.isActive);
+    const activeVersionLabel = activeBtn?.label || versionButtons[0]?.label || 'Version 1';
+    const warningBanner = el.querySelector('#wham-message-modal-footer');
+    contexts.push({
+      el,
+      index: idx++,
+      promptText,
+      instructions: promptText,
+      turnKey: toTurnKey(promptText),
+      versionButtons,
+      activeVersionLabel,
+      warningBanner,
+      warningText: (warningBanner?.textContent || '').trim()
+    });
+  }
+  return contexts;
+};
+
+const selectActiveTurnContext = () => {
+  const contexts = getTurnContexts();
+  if (!contexts.length) return null;
+  const viewportCenter = window.innerHeight / 2;
+  let best = null;
+  let bestDist = Infinity;
+  for (const ctx of contexts) {
+    const rect = ctx.el.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight) continue;
+    const center = rect.top + rect.height / 2;
+    const dist = Math.abs(center - viewportCenter);
+    if (dist < bestDist) {
+      best = ctx;
+      bestDist = dist;
+    }
+  }
+  if (!best) best = contexts[contexts.length - 1];
+  return best;
+};
+
+let ACTIVE_TURN = null;
+
+// Listen for patch capture messages from page hook
   window.addEventListener('message', (event) => {
   const t = event.data?.type;
   if (t !== 'CA_PATCH_CAPTURE') return;
@@ -401,21 +547,18 @@ const splitReportFromLogs = (raw) => {
 });
 
 async function captureSection(key){
-  // Logs: independent of RULES
+  const scope = ACTIVE_TURN?.el || document;
   if (key === 'logs') {
-    const node = await findLogsTabAndContainer();
+    const node = await findLogsTabAndContainer(scope);
     if (!node) return null;
     const raw = extractLogsRaw(node);
     const { report, logs } = splitReportFromLogs(raw);
-    // If both report and logs were requested, report will be picked by report-capture too.
     return { key, label: 'Logs', text: logs || String(raw).trim() };
   }
-  const def = RULES.sections.find(s=>s.key===key);
+  const def = RULES.sections.find((s) => s.key === key);
   if (!def && key !== 'diffs' && key !== 'report') return null;
-  // Special handling: diffs via "Copy patch"
   if (key === 'diffs') {
     await new Promise((res) => { chrome.runtime.sendMessage({ type: 'INJECT_PATCH_HOOK' }, () => res()); });
-    // Use CDP via background to perform trusted clicks and capture patch
     const patch = await new Promise((resolve) => {
       chrome.runtime.sendMessage({ type: 'CDP_COPY_PATCH' }, (resp) => {
         if (chrome.runtime.lastError) return resolve('');
@@ -427,15 +570,13 @@ async function captureSection(key){
     return { key, label: def?.label || 'Diffs', text: String(patch) };
   }
   if (key === 'report') {
-    // Prefer the actual report section in the page (markdown + prose + markdown-new-styling)
-    const node = findReportBlock();
+    const node = findReportBlock(scope);
     if (node) {
-      const raw = (typeof node.innerText==='string' ? node.innerText : node.textContent) || '';
-      const text = String(raw).trim();
-      if (text && text.length > 50) return { key, label: def?.label || 'Report', text };
+      const raw = (typeof node.innerText === 'string' ? node.innerText : node.textContent) || '';
+      const textVal = String(raw).trim();
+      if (textVal && textVal.length > 50) return { key, label: def?.label || 'Report', text: textVal };
     }
-    // Fallback: derive from Logs preface if the report block is unavailable
-    const logsNode = await findLogsTabAndContainer();
+    const logsNode = await findLogsTabAndContainer(scope);
     if (logsNode) {
       const rawLogs = extractLogsRaw(logsNode);
       const { report } = splitReportFromLogs(rawLogs);
@@ -444,49 +585,79 @@ async function captureSection(key){
     return null;
   }
   def.activate?.();
-  const node = def.container?.();
+  const node = def.container?.(scope);
   if (!node) return null;
-  const raw = (typeof node.innerText==='string' ? node.innerText : node.textContent) || '';
-  const text = String(raw).trim();
-  return { key, label: def.label, text };
+  const raw = (typeof node.innerText === 'string' ? node.innerText : node.textContent) || '';
+  const textVal = String(raw).trim();
+  return { key, label: def.label, text: textVal };
 }
 
-async function performExport({ sections, format }){
-  // ... existing guards ...
-  const tabs = (RULES.versionTabs?.() || []);
-  let captured=[];
-  const active = (RULES.versionLocator?.() || '').trim();
 
-  if (tabs.length>1){
-    for (const t of tabs){
-      try { t.el?.scrollIntoView?.({ block: 'center', inline: 'center' }); } catch {}
-      try { t.el?.click?.(); } catch {}
-      await new Promise(r=>setTimeout(r,300));
-      const parts = [];
-          for (const k of sections) {
-            const s = await captureSection(k);
-            if (s) parts.push({ ...s, ver: t.label });
-          }
-      captured.push(...parts);
+async function collectSectionsForContext(context, requestedSections) {
+  if (!context) return [];
+  const keys = Array.isArray(requestedSections) && requestedSections.length ? requestedSections : ['diffs', 'report'];
+  const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
+  const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
+  const versionButtons = context.versionButtons || [];
+  const activeLabel = context.activeVersionLabel || versionButtons[0]?.label || 'Version 1';
+  const versionEntries = versionButtons.length
+    ? versionButtons.map((btn, idx) => {
+        const assistantId = context.versionIdByLabel?.get(btn.label)
+          ?? (context.versionIds && context.versionIds[idx])
+          ?? null;
+        const isLatest = context.latestAssistantId
+          ? context.latestAssistantId === assistantId
+          : !!context.isLatestTurn;
+        return { label: btn.label, el: btn.el, assistantId, isLatest, isActive: btn.isActive };
+      })
+    : [{
+        label: activeLabel,
+        el: null,
+        assistantId: context.versionIdByLabel?.get(activeLabel)
+          ?? (context.versionIds && context.versionIds[0])
+          ?? null,
+        isLatest: !!context.isLatestTurn,
+        isActive: true
+      }];
+  const restoreEl = versionButtons.find((btn) => btn.isActive)?.el || null;
+  const captured = [];
+  for (const entry of versionEntries) {
+    if (entry.el) {
+      try { entry.el.click(); } catch {}
+      await new Promise((r) => setTimeout(r, 250));
     }
-    // try restore
-    const back=tabs.find(x=>x.label===active);
-    try { back?.el?.click?.(); } catch {}
-          } else {
-            for (const k of sections) {
-              const s=await captureSection(k); if (s) captured.push({ ...s, ver: active || (versionRaw || 'current') });
-            }
-          }
-
-  // De-dupe by (key,label,first512)
+    ACTIVE_TURN = { ...context, currentVersionLabel: entry.label };
+    for (const key of keys) {
+      const result = await captureSection(key);
+      if (result) {
+        captured.push({
+          ...result,
+          ver: `${turnLabel} – ${entry.label}`,
+          turnId: context.turnId || null,
+          turnIndex,
+          turnLabel,
+          versionId: entry.assistantId || null,
+          versionLabel: entry.label,
+          isLatestTurn: !!context.isLatestTurn,
+          isLatestVersion: !!entry.isLatest
+        });
+      }
+    }
+  }
+  ACTIVE_TURN = null;
+  if (restoreEl) {
+    try { restoreEl.click(); } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+  }
   const seen = new Set();
-  captured = captured.filter(s=>{
-    const k = `${s.key}::${s.label}::${s.text.slice(0,512)}`;
-    if (seen.has(k)) return false; seen.add(k); return true;
+  return captured.filter((entry) => {
+    const token = `${entry.key}::${entry.ver}::${(entry.text || '').slice(0, 512)}`;
+    if (seen.has(token)) return false;
+    seen.add(token);
+    return true;
   });
-
-  // ... build markdown / zip as you do today ...
 }
+
 
 // --- Panel wiring and export bridge (non-extraction logic) ---
 (() => {
@@ -534,10 +705,17 @@ async function performExport({ sections, format }){
 
   const updatePanelState = () => {
     if (!state.panelFrame) return;
-    const version = (window.RULES?.versionLocator?.() || '').trim();
+    const context = selectActiveTurnContext();
     const taskId = window.RULES?.taskIdFromUrl?.(location.href) || 'task';
-    if (version !== state.lastVersion) state.lastVersion = version;
-    sendToPanel('CA_STATE', { taskId, version, url: location.href });
+    if (!context) {
+      sendToPanel('CA_STATE', { taskId, version: 'current', url: location.href });
+      return;
+    }
+    const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
+    const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
+    const versionLabel = context.activeVersionLabel || context.versionButtons?.[0]?.label || '';
+    const versionDisplay = context.versionButtons?.length ? `${turnLabel} – ${versionLabel || 'current'}` : turnLabel;
+    sendToPanel('CA_STATE', { taskId, version: versionDisplay || 'current', url: location.href });
   };
 
   const startVersionTicker = () => {
@@ -610,20 +788,29 @@ async function performExport({ sections, format }){
   };
 
   // Build payloads for export
-  const buildJsonPayload = ({ taskId, version, sections, taskTitle }) => ({
+  const buildJsonPayload = ({ taskId, turn, sections, taskTitle }) => ({
     exportedAt: new Date().toISOString(),
     taskId,
-    version,
+    turn,
     url: location.href,
     taskTitle,
     sections
   });
 
-  const buildMarkdown = ({ taskId, version, sections }) => {
+  const buildMarkdown = ({ taskId, turn, sections }) => {
     const lines = [];
     lines.push('# Codex Task Export');
     lines.push(`Task: ${taskId}`);
-    lines.push(`Version: ${version || 'current'}`);
+    if (turn?.label) {
+      const ordinal = typeof turn.index === 'number' ? ` (#${turn.index + 1})` : '';
+      lines.push(`Turn: ${turn.label}${ordinal}`);
+    }
+    if (turn?.id) {
+      lines.push(`Turn ID: ${turn.id}`);
+    }
+    if (typeof turn?.isLatest === 'boolean') {
+      lines.push(`Latest Turn: ${turn.isLatest ? 'yes' : 'no'}`);
+    }
     lines.push(`URL: ${location.href}`);
     lines.push(`Generated: ${new Date().toISOString()}`);
     lines.push('');
@@ -633,16 +820,14 @@ async function performExport({ sections, format }){
       return lines.join('\n');
     }
     const order = ['report', 'diffs', 'logs'];
-    const versions = [];
-    for (const s of sections) {
-      const v = s.ver || 'Current';
-      if (!versions.includes(v)) versions.push(v);
-    }
+    const versions = Array.from(new Set(sections.map((s) => s.ver || 'Current')));
+    lines.push(`Versions: ${versions.join(', ')}`);
+    lines.push('');
     for (const ver of versions) {
       lines.push(`## ${ver}`);
       lines.push('');
       for (const key of order) {
-        const items = sections.filter(s => (s.ver || 'Current') === ver && s.key === key);
+        const items = sections.filter((s) => (s.ver || 'Current') === ver && s.key === key);
         if (!items.length) continue;
         const label = key === 'diffs' ? 'Diffs' : key === 'report' ? 'Report' : 'Logs';
         const fence = key === 'diffs' ? '```diff' : key === 'report' ? '```json' : '```text';
@@ -674,47 +859,18 @@ async function performExport({ sections, format }){
       sendToPanel('CA_EXPORT_PROGRESS', { status: 'running' });
 
       const taskIdRaw = window.RULES?.taskIdFromUrl?.(location.href) || 'task';
-      const versionRaw = (window.RULES?.versionLocator?.() || '').trim() || 'current';
       const taskId = sanitizeSegment(taskIdRaw, 'task');
-      const version = sanitizeSegment(versionRaw, 'current');
 
       try {
-        // Use the existing extraction logic you updated
-        const capturedBefore = await (async () => {
-          // Reuse performExport's extraction up to dedupe, then return captured
-          // We temporarily wrap performExport's extraction by duplicating its steps minimally
-          // But to avoid touching it, we call it indirectly by cloning logic: leverage captureSection + RULES.versionTabs
-          const tabs = (window.RULES?.versionTabs?.() || []);
-          let captured = [];
-          const active = (window.RULES?.versionLocator?.() || '').trim();
-          if (tabs.length > 1) {
-            for (const t of tabs) {
-              try { t.el?.click?.(); } catch {}
-              await sleep(120);
-              const parts = [];
-              for (const k of sections) {
-                const s = await captureSection(k);
-                if (s) parts.push({ ...s, ver: t.label });
-              }
-              captured.push(...parts);
-            }
-            const back = tabs.find((x) => x.label === active);
-            try { back?.el?.click?.(); } catch {}
-          } else {
-            for (const k of sections) {
-              const s = await captureSection(k);
-              if (s) captured.push({ ...s, ver: active || (versionRaw || 'current') });
-            }
-          }
-        const seen = new Set();
-        captured = captured.filter((s) => {
-          const k = `${s.key}::${s.ver || ''}::${(s.text || '').slice(0, 512)}`;
-          if (seen.has(k)) return false; seen.add(k); return true;
-        });
-          return captured;
-        })();
+        const context = selectActiveTurnContext();
+        if (!context) {
+          sendToPanel('CA_EXPORT_RESULT', { ok: false, message: 'No turn is visible on the page.' });
+          state.exporting = false;
+          return;
+        }
 
-        const captured = capturedBefore;
+        await resolveTurnMetadata(context, taskIdRaw);
+        const captured = await collectSectionsForContext(context, sections);
         if (!captured.length) {
           sendToPanel('CA_EXPORT_RESULT', { ok: false, message: 'No sections found to export.' });
           state.exporting = false;
@@ -723,18 +879,31 @@ async function performExport({ sections, format }){
 
         const taskTitle = getTaskTitle();
         const titleSlug = slug(taskTitle);
-        // Encode which section types were exported in the filename
-        const typeOrder = ['report','diffs','logs'];
+        const typeOrder = ['report', 'diffs', 'logs'];
         const capturedTypes = (() => {
-          const set = new Set(captured.map(s => s.key));
-          return typeOrder.filter(t => set.has(t));
+          const set = new Set(captured.map((s) => s.key));
+          return typeOrder.filter((t) => set.has(t));
         })();
         const typesSuffix = capturedTypes.length ? `__${capturedTypes.join('+')}` : '';
+        const versionLabels = Array.from(new Set(captured.map((s) => s.versionLabel || 'Current')));
+        const versionSegment = versionLabels.length > 1
+          ? 'all-versions'
+          : sanitizeSegment((versionLabels[0] || 'current').toLowerCase(), 'current');
+        const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
+        const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
+        const turnSegment = sanitizeSegment(turnLabel.toLowerCase(), `turn${turnIndex + 1}`);
+        const baseName = `${titleSlug || 'task'}__${turnSegment}__${versionSegment}`;
+        const turnMeta = {
+          index: turnIndex,
+          label: turnLabel,
+          id: context.turnId || null,
+          isLatest: !!context.isLatestTurn
+        };
+
         if (format === 'markdown') {
-          const markdown = buildMarkdown({ taskId, version: versionRaw || 'current', sections: captured });
+          const markdown = buildMarkdown({ taskId, turn: turnMeta, sections: captured });
           const base64 = encodeBase64(markdown);
-          // Save directly under base folder (no per-task subfolders)
-          const filename = `${titleSlug || 'task'}__${version}${typesSuffix}.md`;
+          const filename = `${baseName}${typesSuffix}.md`;
           chrome.runtime.sendMessage(
             { type: 'EXPORT_SINGLE', path: filename, base64, mime: 'text/markdown' },
             (res) => {
@@ -746,10 +915,9 @@ async function performExport({ sections, format }){
             }
           );
         } else {
-          const json = JSON.stringify(buildJsonPayload({ taskId, version: versionRaw || 'current', sections: captured, taskTitle }), null, 2);
+          const json = JSON.stringify(buildJsonPayload({ taskId, turn: turnMeta, sections: captured, taskTitle }), null, 2);
           const base64 = encodeBase64(json);
-          // Save directly under base folder (no per-task subfolders)
-          const filename = `${titleSlug || 'task'}__${version}${typesSuffix}.json`;
+          const filename = `${baseName}${typesSuffix}.json`;
           chrome.runtime.sendMessage(
             { type: 'EXPORT_SINGLE', path: filename, base64, mime: 'application/json' },
             (res) => {
