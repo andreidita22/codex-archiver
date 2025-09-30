@@ -41,3 +41,9 @@ Changelog
   - File naming includes task title: `<taskId>/<version>/<slug(taskTitle)>__<version>.{md,json}` and JSON embeds `taskTitle`
   - Fixed transient postMessage origin mismatch during panel bootstrap
   - Repo cleanup: removed non‑extension files, added this README
+Turn Detection
+- The content script scans the left timeline for stacked prompt bubbles (div.flex.flex-col.gap-4) that are visible in the viewport.
+- For each bubble we look for a prompt header and the set of "Version N" buttons rendered by the task header bar.
+- A bubble is considered a turn when either the prompt text is present (even without the legacy NODE: prefix) or any Version buttons exist; we fall back to synthetic labels (Turn N) and keys when needed.
+- The active turn is picked by comparing each turn bubble's center to the viewport center; the closest visible turn becomes the scope for capture.
+- When multiple versions exist inside the turn, we iterate each button in place, capturing diffs/report/logs before restoring the original selection.
