@@ -10,19 +10,36 @@
       <strong>Codex Archiver</strong>
       <div class="ca-sub" id="ca-task">task</div>
     </div>
-    <button id="ca-close" title="Hide">×</button>
+    <button id="ca-close" title="Hide">x</button>
   </div>
   <div class="ca-body">
     <div class="ca-field">
       <label>Version</label>
-      <div id="ca-version" class="ca-chip">—</div>
+      <div class="ca-version-row">
+        <div id="ca-version" class="ca-chip">-</div>
+        <div class="ca-turn-filter">
+          <label class="ca-turn-all">
+            <input type="checkbox" id="ca-turn-all" />
+            <span>All</span>
+          </label>
+          <button id="ca-turn-dropdown-toggle" class="ca-turn-button" type="button">
+            <span id="ca-turn-summary">Active only</span>
+            <span class="ca-caret" aria-hidden="true">&#9662;</span>
+          </button>
+          <div id="ca-turn-dropdown" class="ca-turn-dropdown hidden">
+            <div class="ca-turn-dropdown-inner">
+              <div id="ca-turn-options" class="ca-turn-options"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="ca-field">
       <label>Sections</label>
       <div class="ca-chips">
-        <label><input type="checkbox" value="diffs" checked /> Diffs</label>
-        <label><input type="checkbox" value="report" checked /> Report</label>
-        <label><input type="checkbox" value="logs" /> Logs</label>
+        <label><input type="checkbox" value="diffs" data-section-checkbox checked /> Diffs</label>
+        <label><input type="checkbox" value="report" data-section-checkbox checked /> Report</label>
+        <label><input type="checkbox" value="logs" data-section-checkbox /> Logs</label>
       </div>
     </div>
     <div class="ca-field">

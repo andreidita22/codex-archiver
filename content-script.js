@@ -500,13 +500,15 @@ const getTurnContexts = () => {
     const activeBtn = versionButtons.find((btn) => btn.isActive);
     const activeVersionLabel = activeBtn?.label || versionButtons[0]?.label || 'Version 1';
     const warningBanner = el.querySelector('#wham-message-modal-footer');
-    const instructions = promptText || `Turn ${idx + 1}`;
+    const turnLabel = `Turn ${idx + 1}`;
+    const instructions = promptText;
     const turnKeySource = promptText || `turn-${idx}`;
     contexts.push({
       el,
       index: idx++,
       promptText,
       instructions,
+      turnLabel,
       turnKey: toTurnKey(turnKeySource),
       versionButtons,
       activeVersionLabel,
@@ -517,8 +519,46 @@ const getTurnContexts = () => {
   return contexts;
 };
 
-const selectActiveTurnContext = () => {
-  const contexts = getTurnContexts();
+const makeTurnVersionKey = (context, versionLabel) => {
+  const base = context.turnId || context.turnKey || `turn-${context.index ?? 0}`;
+  const versionKey = toTurnKey(versionLabel || 'current') || `version-${context.index ?? 0}`;
+  return `${base}::${versionKey}`;
+};
+
+const enumerateContextVersions = (context) => {
+  const versionButtons = context.versionButtons || [];
+  if (versionButtons.length) {
+    return versionButtons.map((btn, idx) => {
+      const assistantId = context.versionIdByLabel?.get(btn.label)
+        ?? (context.versionIds && context.versionIds[idx])
+        ?? null;
+      const isLatest = context.latestAssistantId
+        ? context.latestAssistantId === assistantId
+        : !!context.isLatestTurn;
+      return {
+        label: btn.label,
+        el: btn.el,
+        isActive: btn.isActive,
+        assistantId,
+        isLatest,
+      };
+    });
+  }
+  const label = context.activeVersionLabel || 'Version 1';
+  const assistantId = context.versionIdByLabel?.get(label)
+    ?? (context.versionIds && context.versionIds[0])
+    ?? null;
+  return [{
+    label,
+    el: null,
+    isActive: true,
+    assistantId,
+    isLatest: !!context.isLatestTurn,
+  }];
+};
+
+const selectActiveTurnContext = (contextsArg) => {
+  const contexts = Array.isArray(contextsArg) ? contextsArg : getTurnContexts();
   if (!contexts.length) return null;
   const viewportCenter = window.innerHeight / 2;
   let best = null;
@@ -595,35 +635,17 @@ async function captureSection(key){
 }
 
 
-async function collectSectionsForContext(context, requestedSections) {
+async function collectSectionsForContext(context, requestedSections, filterSet = null) {
   if (!context) return [];
   const keys = Array.isArray(requestedSections) && requestedSections.length ? requestedSections : ['diffs', 'report'];
   const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
-  const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
-  const versionButtons = context.versionButtons || [];
-  const activeLabel = context.activeVersionLabel || versionButtons[0]?.label || 'Version 1';
-  const versionEntries = versionButtons.length
-    ? versionButtons.map((btn, idx) => {
-        const assistantId = context.versionIdByLabel?.get(btn.label)
-          ?? (context.versionIds && context.versionIds[idx])
-          ?? null;
-        const isLatest = context.latestAssistantId
-          ? context.latestAssistantId === assistantId
-          : !!context.isLatestTurn;
-        return { label: btn.label, el: btn.el, assistantId, isLatest, isActive: btn.isActive };
-      })
-    : [{
-        label: activeLabel,
-        el: null,
-        assistantId: context.versionIdByLabel?.get(activeLabel)
-          ?? (context.versionIds && context.versionIds[0])
-          ?? null,
-        isLatest: !!context.isLatestTurn,
-        isActive: true
-      }];
-  const restoreEl = versionButtons.find((btn) => btn.isActive)?.el || null;
+  const turnLabel = context.turnLabel || context.instructions || `Turn ${turnIndex + 1}`;
+  const versions = enumerateContextVersions(context);
+  const entries = filterSet ? versions.filter((entry) => filterSet.has(makeTurnVersionKey(context, entry.label))) : versions;
+  if (!entries.length) return [];
+  const restoreEl = versions.find((entry) => entry.isActive && entry.el)?.el || null;
   const captured = [];
-  for (const entry of versionEntries) {
+  for (const entry of entries) {
     if (entry.el) {
       try { entry.el.click(); } catch {}
       await new Promise((r) => setTimeout(r, 250));
@@ -634,7 +656,8 @@ async function collectSectionsForContext(context, requestedSections) {
       if (result) {
         captured.push({
           ...result,
-          ver: `${turnLabel} – ${entry.label}`,
+          ver: `${turnLabel} - ${entry.label}`,
+          turnVersionKey: makeTurnVersionKey(context, entry.label),
           turnId: context.turnId || null,
           turnIndex,
           turnLabel,
@@ -653,12 +676,13 @@ async function collectSectionsForContext(context, requestedSections) {
   }
   const seen = new Set();
   return captured.filter((entry) => {
-    const token = `${entry.key}::${entry.ver}::${(entry.text || '').slice(0, 512)}`;
+    const token = `${entry.key}::${entry.turnVersionKey}::${(entry.text || '').slice(0, 512)}`;
     if (seen.has(token)) return false;
     seen.add(token);
     return true;
   });
 }
+
 
 
 // --- Panel wiring and export bridge (non-extraction logic) ---
@@ -707,18 +731,40 @@ async function collectSectionsForContext(context, requestedSections) {
 
   const updatePanelState = () => {
     if (!state.panelFrame) return;
-    const context = selectActiveTurnContext();
+    const contexts = getTurnContexts();
+    const activeContext = selectActiveTurnContext(contexts);
     const taskId = window.RULES?.taskIdFromUrl?.(location.href) || 'task';
-    if (!context) {
-      sendToPanel('CA_STATE', { taskId, version: 'current', url: location.href });
+    if (!activeContext) {
+      sendToPanel('CA_STATE', { taskId, version: 'current', url: location.href, turnOptions: [], activeKey: null });
       return;
     }
-    const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
-    const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
-    const versionLabel = context.activeVersionLabel || context.versionButtons?.[0]?.label || '';
-    const versionDisplay = context.versionButtons?.length ? `${turnLabel} – ${versionLabel || 'current'}` : turnLabel;
-    sendToPanel('CA_STATE', { taskId, version: versionDisplay || 'current', url: location.href });
+    const turnOptions = [];
+    for (const ctx of contexts) {
+      const entries = enumerateContextVersions(ctx);
+      const turnIndex = typeof ctx.turnIndex === 'number' ? ctx.turnIndex : (ctx.index ?? 0);
+      const turnLabel = ctx.turnLabel || ctx.instructions || `Turn ${turnIndex + 1}`;
+      entries.forEach((entry) => {
+        const key = makeTurnVersionKey(ctx, entry.label);
+        turnOptions.push({
+          key,
+          turnLabel,
+          versionLabel: entry.label,
+          isActiveTurn: ctx === activeContext,
+          isActiveVersion: ctx === activeContext && entry.isActive,
+        });
+      });
+    }
+    const activeTurnIndex = typeof activeContext.turnIndex === 'number' ? activeContext.turnIndex : (activeContext.index ?? 0);
+    const activeTurnLabel = activeContext.turnLabel || activeContext.instructions || `Turn ${activeTurnIndex + 1}`;
+    const activeEntries = enumerateContextVersions(activeContext);
+    const activeEntry = activeEntries.find((entry) => entry.isActive) || activeEntries[0] || null;
+    const activeVersionLabel = activeEntry?.label || 'Version 1';
+    const versionDisplay = activeEntry ? `${activeTurnLabel} - ${activeVersionLabel || 'current'}` : activeTurnLabel;
+    const activeKey = activeEntry ? makeTurnVersionKey(activeContext, activeEntry.label) : null;
+    sendToPanel('CA_STATE', { taskId, version: versionDisplay || 'current', url: location.href, turnOptions, activeKey });
   };
+
+
 
   const startVersionTicker = () => {
     if (state.versionTimer) return;
@@ -803,15 +849,28 @@ async function collectSectionsForContext(context, requestedSections) {
     const lines = [];
     lines.push('# Codex Task Export');
     lines.push(`Task: ${taskId}`);
-    if (turn?.label) {
-      const ordinal = typeof turn.index === 'number' ? ` (#${turn.index + 1})` : '';
-      lines.push(`Turn: ${turn.label}${ordinal}`);
-    }
-    if (turn?.id) {
-      lines.push(`Turn ID: ${turn.id}`);
-    }
-    if (typeof turn?.isLatest === 'boolean') {
-      lines.push(`Latest Turn: ${turn.isLatest ? 'yes' : 'no'}`);
+    if (turn) {
+      if (Array.isArray(turn.labels) && turn.labels.length > 1) {
+        lines.push(`Turns: ${turn.labels.join(', ')}`);
+        if (Array.isArray(turn.indexes) && turn.indexes.length) {
+          const ordinals = turn.indexes.map((idx) => idx + 1);
+          lines.push(`Turn indexes: ${ordinals.join(', ')}`);
+        }
+      } else if (turn.label) {
+        const ordinal = typeof turn.index === 'number' ? ` (#${turn.index + 1})` : '';
+        lines.push(`Turn: ${turn.label}${ordinal}`);
+      }
+      if (Array.isArray(turn.ids) && turn.ids.length) {
+        lines.push(`Turn IDs: ${turn.ids.join(', ')}`);
+      } else if (turn?.id) {
+        lines.push(`Turn ID: ${turn.id}`);
+      }
+      if (typeof turn?.isLatest === 'boolean') {
+        lines.push(`Latest Turn: ${turn.isLatest ? 'yes' : 'no'}`);
+      }
+      if (Array.isArray(turn?.selectedKeys) && turn.selectedKeys.length && !(turn.labels && turn.labels.length > 1)) {
+        lines.push(`Selected entries: ${turn.selectedKeys.length}`);
+      }
     }
     lines.push(`URL: ${location.href}`);
     lines.push(`Generated: ${new Date().toISOString()}`);
@@ -862,17 +921,24 @@ async function collectSectionsForContext(context, requestedSections) {
 
       const taskIdRaw = window.RULES?.taskIdFromUrl?.(location.href) || 'task';
       const taskId = sanitizeSegment(taskIdRaw, 'task');
+      const selectedKeys = Array.isArray(payload?.selectedKeys) ? payload.selectedKeys.filter(Boolean) : [];
+      const selectionSet = selectedKeys.length ? new Set(selectedKeys) : null;
+      const selectAllRequested = !!payload?.selectAll;
 
       try {
-        const context = selectActiveTurnContext();
-        if (!context) {
-          sendToPanel('CA_EXPORT_RESULT', { ok: false, message: 'No turn is visible on the page.' });
-          state.exporting = false;
-          return;
+        const contexts = getTurnContexts();
+        const activeContext = selectActiveTurnContext(contexts);
+        const contextsToProcess = selectAllRequested
+          ? contexts
+          : selectionSet ? contexts : (activeContext ? [activeContext] : []);
+
+        const captured = [];
+        for (const ctx of contextsToProcess) {
+          await resolveTurnMetadata(ctx, taskIdRaw);
+          const pieces = await collectSectionsForContext(ctx, sections, selectAllRequested ? null : selectionSet);
+          if (pieces.length) captured.push(...pieces);
         }
 
-        await resolveTurnMetadata(context, taskIdRaw);
-        const captured = await collectSectionsForContext(context, sections);
         if (!captured.length) {
           sendToPanel('CA_EXPORT_RESULT', { ok: false, message: 'No sections found to export.' });
           state.exporting = false;
@@ -887,25 +953,46 @@ async function collectSectionsForContext(context, requestedSections) {
           return typeOrder.filter((t) => set.has(t));
         })();
         const typesSuffix = capturedTypes.length ? `__${capturedTypes.join('+')}` : '';
-        const versionLabels = Array.from(new Set(captured.map((s) => s.versionLabel || 'Current')));
+        const versionLabels = Array.from(new Set(captured.map((s) => s.ver || 'Current')));
         const versionSegment = versionLabels.length > 1
           ? 'all-versions'
           : sanitizeSegment((versionLabels[0] || 'current').toLowerCase(), 'current');
-        const turnIndex = typeof context.turnIndex === 'number' ? context.turnIndex : (context.index ?? 0);
-        const turnLabel = context.turnLabel || `Turn ${turnIndex + 1}`;
-        const turnSegment = sanitizeSegment(turnLabel.toLowerCase(), `turn${turnIndex + 1}`);
-        const baseName = `${titleSlug || 'task'}__${turnSegment}__${versionSegment}`;
-        const turnMeta = {
-          index: turnIndex,
-          label: turnLabel,
-          id: context.turnId || null,
-          isLatest: !!context.isLatestTurn
-        };
+        const turnLabels = Array.from(new Set(captured.map((s) => s.turnLabel || 'Turn')));
+        const turnIndexes = Array.from(new Set(captured.map((s) => s.turnIndex).filter((v) => v !== undefined && v !== null)));
+        const turnIds = Array.from(new Set(captured.map((s) => s.turnId).filter(Boolean)));
+        let turnSegment;
+        let turnMeta;
+        if (turnLabels.length === 1) {
+          const primary = captured.find((s) => s.turnLabel === turnLabels[0]);
+          const turnIndex = primary?.turnIndex ?? (turnIndexes[0] ?? 0);
+          const labelSlug = turnLabels[0] || `turn${turnIndex + 1}`;
+          turnSegment = sanitizeSegment(labelSlug.toLowerCase(), `turn${turnIndex + 1}`);
+          turnMeta = {
+            label: turnLabels[0],
+            index: turnIndex,
+            id: primary?.turnId || null,
+            isLatest: captured.some((s) => s.turnLabel === turnLabels[0] && s.isLatestTurn)
+          };
+        } else {
+          turnSegment = 'multi-turn';
+          turnMeta = {
+            label: 'multiple',
+            labels: turnLabels,
+            indexes: turnIndexes,
+            count: turnLabels.length,
+            isLatest: captured.every((s) => s.isLatestTurn)
+          };
+          if (turnIds.length) turnMeta.ids = turnIds;
+        }
+        if (selectionSet) {
+          turnMeta.selectedKeys = Array.from(selectionSet);
+        }
 
+        const baseName = `${titleSlug || 'task'}__${turnSegment}__${versionSegment}${typesSuffix}`;
         if (format === 'markdown') {
           const markdown = buildMarkdown({ taskId, turn: turnMeta, sections: captured });
           const base64 = encodeBase64(markdown);
-          const filename = `${baseName}${typesSuffix}.md`;
+          const filename = `${baseName}.md`;
           chrome.runtime.sendMessage(
             { type: 'EXPORT_SINGLE', path: filename, base64, mime: 'text/markdown' },
             (res) => {
@@ -919,7 +1006,7 @@ async function collectSectionsForContext(context, requestedSections) {
         } else {
           const json = JSON.stringify(buildJsonPayload({ taskId, turn: turnMeta, sections: captured, taskTitle }), null, 2);
           const base64 = encodeBase64(json);
-          const filename = `${baseName}${typesSuffix}.json`;
+          const filename = `${baseName}.json`;
           chrome.runtime.sendMessage(
             { type: 'EXPORT_SINGLE', path: filename, base64, mime: 'application/json' },
             (res) => {
@@ -938,6 +1025,7 @@ async function collectSectionsForContext(context, requestedSections) {
         state.exporting = false;
       }
     }
+    
     if (type === 'CA_CLOSE_PANEL') {
       state.snoozeUntil = Date.now() + 60_000;
       removePanel();
